@@ -336,7 +336,7 @@ do
             - @return number, number
             ]]
             return function(s, i)
-                local b, e = string_find(s, "^[%d.]+", i)
+                local b, e = string_find(s, "^%-?%d*%.?%d+", i)
                 if e == nil then
                     error(("Unexpected end of number at index %d."):format(i - 1))
                 end
@@ -557,6 +557,7 @@ do
         ["7"] = valueDeserializers["number"](),
         ["8"] = valueDeserializers["number"](),
         ["9"] = valueDeserializers["number"](),
+        ["-"] = valueDeserializers["number"](),
         
         -- On undefined character
         __index = function(self, c)
