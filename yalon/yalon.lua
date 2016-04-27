@@ -156,9 +156,35 @@ do
             - @arg table t The table we store all strings in
             - @arg number i The table's current index
             - @arg table v The value we need to serialize
+            - @arg table tc The table cache for reference
             - @retur number
             ]]
-            return function(t, i, v)
+            return function(t, i, v, tc)
+                
+                if tc[v] == nil then
+                    
+                    -- Reserve an index for reference
+                    i = i + 1
+                    t[i] = ""
+                    
+                    -- Table refers to the reserved index
+                    tc[v] = i
+                    
+                else
+                    
+                    local ti = tc[v]
+                    
+                    -- Set the declaring reference if not set (This is always if the table is used for the second time)
+                    if t[ti] == "" then
+                        tc[1] = tc[1] + 1
+                        t[ti] = "&"..tc[1].."="
+                    end
+                    
+                    i = i + 1
+                    t[i] = string_sub(t[ti], 1, #t[ti] - 1)
+                    
+                    return i -- And return because we don't have to declare the table again
+                end
                 
                 -- Numeric
                 if isSequential(v) then
@@ -171,7 +197,7 @@ do
                     -- Iterrate through each value
                     for _, _v in ipairs(v) do
                         
-                        i = typeSerializers[type(_v)](t, i, _v)
+                        i = typeSerializers[type(_v)](t, i, _v, tc)
                         
                         i = i + 1
                         t[i] = ","
@@ -197,12 +223,12 @@ do
                     -- Iterrate through each value
                     for _k, _v in pairs(v) do
                         
-                        i = typeSerializers[type(_k)](t, i, _k) -- Key
+                        i = typeSerializers[type(_k)](t, i, _k, tc) -- Key
                         
                         i = i + 1
                         t[i] = ":"
                         
-                        i = typeSerializers[type(_v)](t, i, _v) -- Value
+                        i = typeSerializers[type(_v)](t, i, _v, tc) -- Value
                         
                         i = i + 1
                         t[i] = ","
@@ -251,7 +277,7 @@ do
         local t = {}
         
         -- Any supported value is allowed
-        typeSerializers[type(v)](t, 0, v)
+        typeSerializers[type(v)](t, 0, v, {[1] = 0})
         
         -- Return the concatenated table
         return table_concat(t)
@@ -395,11 +421,17 @@ do
             --[[
             - @arg string s The string we are parsing
             - @arg number i The index of the string we are currently at
+            - @arg table tc The table cache for reference
+            - @arg table|nil t The new table to use (may be nil)
             - @return number, table
             ]]
-            return function(s, i)
+            return function(s, i, tc, t)
                 
-                local c, t = nil, {}
+                local c = nil
+                
+                if t == nil then
+                    t = {}
+                end
 
                 -- What to expect next
                 local expect = EXPECT_VALUE
@@ -423,7 +455,7 @@ do
                             return i, t
                         end
 
-                        i, t[#t + 1] = characterDeserializers[c](s, i)
+                        i, t[#t + 1] = characterDeserializers[c](s, i, tc)
                         expect = EXPECT_END
 
                     -- Expect end of table or value seperator
@@ -455,11 +487,17 @@ do
             --[[
             - @arg string s The string we are parsing
             - @arg number i The index of the string we are currently at
+            - @arg table tc The table cache for reference
+            - @arg table|nil t The new table to use (may be nil)
             - @return number, table
             ]]
-            return function(s, i)
+            return function(s, i, tc, t)
                 
-                local c, t = nil, {}
+                local c = nil
+                
+                if t == nil then
+                    t = {}
+                end
 
                 -- The last parsed key
                 local key
@@ -486,13 +524,13 @@ do
                             return i, t
                         end
 
-                        i, key = characterDeserializers[c](s, i)
+                        i, key = characterDeserializers[c](s, i, tc)
                         expect = EXPECT_KEY_VALUE_SEPERATOR
 
                     -- Expect value
                     elseif expect == EXPECT_VALUE then
 
-                        i, t[key] = characterDeserializers[c](s, i)
+                        i, t[key] = characterDeserializers[c](s, i, tc)
                         expect = EXPECT_END
 
                     -- Expect key value seperator
@@ -529,18 +567,87 @@ do
             end
         end,
         ["table-reference"] = function()
-            return function(s, i)
             
+            --[[
+            - @arg string s The string we are parsing
+            - @arg number i The index of the string we are currently at
+            - @arg table tc The table cache for reference
+            - @return number, table
+            ]]
+            return function(s, i, tc)
+                
+                -- Get the reference id
+                local b, i, ri = string_find(s, "^&(%w+)", i)
+                
+                if i == nil then
+                    error("Unexpected end of string while parsing reference.")
+                end
+                
+                local declaring = false
+                
+                -- Loop through characters
+                while true do
+
+                    -- Cache the next character
+                    i = i + 1
+                    c = string_sub(s, i, i)
+                    
+                    -- Whitespacing
+                    if whitespacing[c] then
+                        -- Continue to the next character
+                    
+                    -- Reference declaration
+                    elseif declaring == false and c == "=" then
+                        declaring = true
+                    
+                    elseif c == "" then
+
+                        -- End of string?
+                        error("Unexpected end of string while parsing reference.")
+
+                    else
+                        
+                        if declaring == true then
+                            
+                            local v = {}
+                            
+                            -- Cache the reference before parsing the table
+                            -- This means we don't have to declare the reference
+                            -- In the most inner table if needed
+                            tc[ri] = v
+                            
+                            i, v = characterDeserializers[c](s, i, tc, v)
+                            tc[ri] = v -- References may not be tables
+                            
+                            return i, v
+                        else
+                            
+                            if tc[ri] == nil then
+                                error(("Undeclared reference '%s' at index %d."):format(ri, i))
+                            end
+                            
+                            return i - 1, tc[ri]
+                        end
+                        
+                    end
+
+                end
+                
             end
         end,
     }
     
     characterDeserializers = {
         
+        -- String
         ["\""] = valueDeserializers["string"](),
+        
+        -- Table
         ["["] = valueDeserializers["table-numeric"](),
         ["{"] = valueDeserializers["table-generic"](),
-        ["$"] = valueDeserializers["table-reference"](),
+        
+        -- Reference
+        ["&"] = valueDeserializers["table-reference"](),
         
         -- Boolean
         ["t"] = valueDeserializers["boolean"](true),
@@ -600,7 +707,7 @@ do
             else
                 
                 -- We can parse any value that is supported
-                i, v = characterDeserializers[c](s, i)
+                i, v = characterDeserializers[c](s, i, {})
                 
                 return v
             end
