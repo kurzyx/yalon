@@ -6,7 +6,7 @@
     
     ----------------------------------------------------------------------------
     
-    YALON 0.01.00
+    YALON 1.00.00
     Yet Another Lua Object Notation
     
 ]]
@@ -719,7 +719,7 @@ do
 end
 
 -- Version of YALON
-yalon.version = "0.01.00"
-yalon.version_nr = 00100
+yalon.version = "1.00.00"
+yalon.version_nr = 10000
 
 return yalon
