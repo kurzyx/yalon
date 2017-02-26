@@ -1,8 +1,8 @@
 --[[
     
     Copyright (c) 2016 Kevin G
-        aka Kurtzalead https://github.com/kurtzalead
-    Licensed under MIT (https://github.com/kurtzalead/yalon/blob/master/LICENSE.md)
+        aka Kurzalead https://github.com/kurzalead
+    Licensed under MIT (https://github.com/kurzalead/yalon/blob/master/LICENSE.md)
     
     ----------------------------------------------------------------------------
     
@@ -152,6 +152,30 @@ do
                 return true
             end
             
+            local getIdentifier
+            do
+
+                local chars, len = {}, nil
+                for c in ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"):gmatch(".") do
+                    chars[#chars + 1] = c
+                end
+                len = #chars
+
+                getIdentifier = function(n)
+                    n = n - 1
+                    local s = ""
+                    while true do
+                        s = chars[n % len + 1]..s
+                        n = math.floor(n / len)
+                        if n == 0 then
+                            break
+                        end
+                    end
+                    return s
+                end
+
+            end
+            
             --[[
             - @arg table t The table we store all strings in
             - @arg number i The table's current index
@@ -177,7 +201,7 @@ do
                     -- Set the declaring reference if not set (This is always if the table is used for the second time)
                     if t[ti] == "" then
                         tc[1] = tc[1] + 1
-                        t[ti] = "&"..tc[1].."="
+                        t[ti] = "&"..getIdentifier(tc[1]).."="
                     end
                     
                     i = i + 1
