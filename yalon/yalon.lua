@@ -1,7 +1,6 @@
 --[[
     
-    Copyright (c) 2016 Kevin G
-        aka Kurzalead https://github.com/kurzalead
+    Copyright (c) 2016 kurzyx https://github.com/kurzyx
     Licensed under MIT (https://github.com/kurzalead/yalon/blob/master/LICENSE.md)
     
     ----------------------------------------------------------------------------
